@@ -1,7 +1,6 @@
-// Run query to see results.
+// Run query in resource graph explorer to see ensure that Network Watcher is 'Enabled'. CIS Azure Fundamental Benchmark 6.6.
+
 resources
-
-
 | where type =~ "microsoft.network/networkwatchers/flowlogs" and isnotnull(properties)
 | extend targetResourceId = tostring(properties.targetResourceId)
 | extend storageId = tostring(properties.storageId)
