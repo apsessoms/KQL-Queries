@@ -1,0 +1,10 @@
+resources   
+  | where type startswith 'microsoft.network/networksecuritygroups'   
+  | mv-expand rules=properties.securityRules  
+  | where rules.properties.destinationPortRange in ("3389", "22" , "80" , "53" , "123" , "161" , "389")  
+  | project   
+      name        = rules.name,  
+      nsgid       = id,  
+      access      = rules.properties.access,  
+      DestPort    = rules.properties.destinationPortRange,  
+      SourcePort  = rules.properties.sourcePortRange
