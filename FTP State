@@ -1,0 +1,9 @@
+**This will show you the FTP state of your Azure App Services**  
+
+appserviceresources
+  | project name, properties.FtpsState
+
+**This will filter it show all that are NOT disabled**
+
+appserviceresources 
+  | project name, properties.FtpsState | where properties_FtpsState != 'Disabled'
