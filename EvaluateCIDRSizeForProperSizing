@@ -1,0 +1,75 @@
+**This will show subnet names, subnet prefixes, prefix length, start ip address, end ip address, and the number of IP addresses**
+
+resources
+| join kind=leftouter(
+    resourcecontainers 
+    | where type =~ 'microsoft.resources/subscriptions' 
+    | project subscriptionName=name, subscriptionId
+) on subscriptionId
+| where type =~ 'microsoft.network/virtualNetworks'
+| extend addressPrefixes=array_length(properties.addressSpace.addressPrefixes)
+| extend vNetAddressSpace=properties.addressSpace.addressPrefixes
+| mv-expand subnet=properties.subnets
+| extend virtualNetwork = name
+| extend subnetPrefix = subnet.properties.addressPrefix
+| extend subnets = properties.subnets
+| extend subnetName = tostring(subnet.name)
+| extend prefixLength = toint(split(subnetPrefix, "/")[1])
+| extend addressPrefix = split(subnetPrefix, "/")[0]
+| extend numberOfIpAddresses = trim_end(".0",tostring(pow(2, 32 - prefixLength) - 5))
+| extend startIp = strcat(strcat_array((array_slice(split(addressPrefix, '.'), 0, 2)),"."), ".", tostring(0))
+| extend endIp = strcat(strcat_array((array_slice(split(addressPrefix, '.'), 0, 2)),"."), ".", trim_end(".0",tostring(pow(2, 32 - prefixLength) - 5))) 
+| project subscriptionName, resourceGroup, location, virtualNetwork, subnetPrefix, subnetName, prefixLength, numberOfIpAddresses, startIp, endIp
+
+**This will show everything mentioned previously, but also the number of IP addresses currently in use**
+
+resources
+| join kind=leftouter(
+    ResourceContainers 
+    | where type=='microsoft.resources/subscriptions' 
+    | project subscriptionName=name, subscriptionId
+) on subscriptionId
+| where type =~ 'Microsoft.Network/virtualNetworks'
+| extend addressPrefixes=array_length(properties.addressSpace.addressPrefixes)
+| extend vNetAddressSpace=properties.addressSpace.addressPrefixes
+| mv-expand subnet=properties.subnets
+| extend virtualNetwork = name
+| extend subnetPrefix = subnet.properties.addressPrefix
+| extend subnets = properties.subnets
+| extend subnetName = tostring(subnet.name)
+| extend prefixLength = toint(split(subnetPrefix, "/")[1])
+| extend addressPrefix = split(subnetPrefix, "/")[0]
+| extend numberOfIpAddresses = trim_end(".0",tostring(pow(2, 32 - prefixLength) - 5))
+| extend startIp = strcat(strcat_array((array_slice(split(addressPrefix, '.'), 0, 2)),"."), ".", tostring(0))
+| extend endIp = strcat(strcat_array((array_slice(split(addressPrefix, '.'), 0, 2)),"."), ".", trim_end(".0",tostring(pow(2, 32 - prefixLength) - 5)))
+| extend endIPNew = case(prefixLength == 23, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'1.255'),
+    prefixLength == 22, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'3.255'),
+    prefixLength == 21, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'7.255'),
+    prefixLength == 20, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'15.255'),
+    prefixLength == 19, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'31.255'),
+    prefixLength == 18, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'63.255'),
+    prefixLength == 17, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'127.255'),
+    prefixLength == 16, strcat(strcat(strcat_array((array_slice(split(startIp,'.'), 0, 1)), "."), "."),'255.255'),
+    'unknown'
+)
+| extend finalendIPaddress = iff(endIPNew == "unknown", endIp, endIPNew) 
+| join kind=leftouter (
+    // Number of connected devices per VNet and Subnet
+    resources
+    | join kind=leftouter(
+        resourcecontainers 
+        | where type=='microsoft.resources/subscriptions' 
+        | project subscriptionName=name, subscriptionId
+    ) on subscriptionId
+    | where type =~ 'microsoft.network/networkinterfaces'
+    | project id, ipConfigurations = properties.ipConfigurations, virtualMachine = tostring(split(properties.virtualMachine.id,"/",8)[0]), subscriptionName
+    | mvexpand ipConfigurations
+    | project id, subnetId = tostring(ipConfigurations.properties.subnet.id), subscriptionName, virtualMachine
+    | parse kind=regex subnetId with '/virtualNetworks/' virtualNetwork '/subnets/' subnet
+    | extend resourceGroup = tostring(split(subnetId,"/",4)[0])
+    | extend subnetName = subnet
+    | summarize usedIPAddresses = count() by subnetName, virtualNetwork, subscriptionName
+)
+on subnetName, virtualNetwork, subscriptionName
+| extend usedIPAddresses_new = iff(isnull(usedIPAddresses),0,usedIPAddresses)
+| project subscriptionName, resourceGroup, virtualNetwork, SubnetName = subnet.name, IPRange = strcat(startIp, " - ", finalendIPaddress), numberOfIpAddresses, usedIPAddresses, AvailableIPAddresses = (toint(numberOfIpAddresses) - usedIPAddresses_new)
