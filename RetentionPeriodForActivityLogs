@@ -1,0 +1,5 @@
+**Define retention period for Activity Log (Recommended 365 days). Runn this in resource graph explorer to see what the retention period is for your Log Analytic worspaces.**
+
+   resources 
+| where type == "microsoft.operationalinsights/workspaces"
+|extend retentionInDays = parse_json(properties).retentionInDays
