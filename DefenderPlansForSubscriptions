@@ -1,0 +1,6 @@
+**To see which Defender plans (Microsoft Defender for Servers, Microsoft Defender for Key Vaults, etc.) are enabled across all subscriptions?**  
+
+securityresources 
+| where type == "microsoft.security/pricings"
+| extend tier = trim(' ',tostring(properties.pricingTier))
+| project name,tier,subscriptionId
