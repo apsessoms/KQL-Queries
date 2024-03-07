@@ -1,0 +1,5 @@
+// Count logs by data source
+
+Heartbeat
+| summarize Count=Count() by toestring(Computer)
+| order by Count desc
