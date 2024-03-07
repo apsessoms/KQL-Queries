@@ -1,0 +1,16 @@
+# This query will find all networks being used in your tenant with subnets that are peered. 
+resources
+| where type contains "virtualNetworks"
+| mv-expand VnetPeering=properties.virtualNetworkPeerings
+| where isnotempty(VnetPeering) 
+| mv-expand subnet=properties.subnets
+| extend subnetName = tostring(subnet.name)
+| extend subnetPrefix = strcat(tostring(subnet.properties.addressPrefix),tostring(subnet.properties.addressPrefixes))
+| project-away subnet
+| join kind=inner (
+    resourcecontainers
+    | where type == 'microsoft.resources/subscriptions'
+    | project subscriptionId, subscriptionName = tostring(name)
+) on subscriptionId
+| summarize by subnetPrefix, subnetName, subscriptionName, resourceGroupName = tostring(resourceGroup), vnetName = tostring(name)
+| order by subnetPrefix asc
