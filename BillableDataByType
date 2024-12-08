@@ -1,0 +1,19 @@
+## Analyze the amount of billable data collected by a particular service or solution. This query will show you billable data volume by type over the past month. 
+
+
+Usage 
+  | where TimeGenerated > ago(32d)
+  | where StartTime >= startofday(ago(31d)) and EndTime < startofday(now())
+  | where IsBillable == true
+  | summarize BillableDataGB = sum(Quantity) / 1000. by bin(StartTime, 1d), DataType 
+  | render columnchart
+
+##This query will show you billable data volume by solution and type over the past month.
+
+
+Usage 
+| where TimeGenerated > ago(32d)
+| where StartTime >= startofday(ago(31d)) and EndTime < startofday(now())
+| where IsBillable == true
+| summarize BillableDataGB = sum(Quantity) / 1000 by Solution, DataType
+| sort by Solution asc, DataType asc
